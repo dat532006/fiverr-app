@@ -46,12 +46,6 @@ Việc ghép cấu hình API vào app hoặc build phục vụ tích hợp cần
 
 Không tạo sẵn các feature hoặc shared folders chưa dùng. ESLint giữ import boundaries theo hybrid feature/shared/infrastructure; source không được import test mocks.
 
-## Tracker và evidence
-
-Human owner: **ddat**. Executor TASK-005: **Astra 6 High — TASK-005 Repository Bootstrap Agent**.
-
-Official tracker: `D:/Do_AN/CuoiKhoa/project-management/FIVERR_TASK_TRACKER.xlsx`. Evidence: `D:/Do_AN/CuoiKhoa/research/verification/TASK-005`. Cả hai ở ngoài repository; các đường dẫn là tham chiếu, không phải nội dung được copy/import vào app.
-
 ## Dừng tại local handoff
 
 Đọc [CONTRIBUTING.md](CONTRIBUTING.md). Không tự chạy TASK-006/TASK-007, gọi CyberSoft, push, tạo remote/PR, merge hoặc deploy. Local-complete chỉ là kết quả sẵn review; source chưa merge không được coi là predecessor đã merge cho task kế tiếp.
