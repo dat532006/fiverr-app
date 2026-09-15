@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+research/
+project-management/
+*.local.*
+tokenCybersoft*
+*credential*
+.DS_Store
+Thumbs.db
