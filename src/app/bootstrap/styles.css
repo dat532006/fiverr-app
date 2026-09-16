@@ -1,1 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import '../../shared/ui/theme/tokens.css';
 @import 'tailwindcss';
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}

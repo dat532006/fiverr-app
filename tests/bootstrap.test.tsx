@@ -4,15 +4,22 @@ import userEvent from '@testing-library/user-event';
 import { Link, useLocation } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { BootstrapApp } from '../src/app/bootstrap/BootstrapApp';
+import { TAXONOMY_MENU_QUERY_KEY } from '../src/features/taxonomy/queries/taxonomy-menu.query-options';
 import { renderBootstrap } from './support/render';
 
-describe('TASK-005 bootstrap composition', () => {
-  it('mounts the scaffold at a nested path without starting requests', () => {
+describe('TASK-005/007 bootstrap composition', () => {
+  it('mounts the real app at a nested/unknown path without starting network requests', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const xhrSpy = vi.spyOn(XMLHttpRequest.prototype, 'send');
     const { queryClient } = renderBootstrap(<BootstrapApp />, '/bootstrap/probe');
-    expect(screen.getByRole('heading', { name: 'Fiverr' }).textContent).toBe('Fiverr');
-    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(screen.getByRole('heading', { name: 'Không tìm thấy trang' }).textContent).toBe(
+      'Không tìm thấy trang',
+    );
+    // The header's taxonomy menu widget mounts on every page but defers its
+    // fetch until opened, so only an idle (non-fetching) cache entry exists.
+    const cachedQueries = queryClient.getQueryCache().getAll();
+    expect(cachedQueries.map((query) => query.queryKey)).toEqual([TAXONOMY_MENU_QUERY_KEY]);
+    expect(cachedQueries[0]?.state.fetchStatus).toBe('idle');
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(xhrSpy).not.toHaveBeenCalled();
   });

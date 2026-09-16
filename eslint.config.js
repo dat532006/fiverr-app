@@ -12,6 +12,7 @@ const publicDependencies = {
   profile: ['auth'],
   hires: ['auth'],
   comments: ['auth'],
+  discovery: ['taxonomy'],
   'admin/users': ['auth', 'profile'],
   'admin/jobs': ['auth', 'jobs', 'taxonomy'],
   'admin/taxonomy': ['auth', 'taxonomy'],

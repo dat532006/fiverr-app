@@ -1,0 +1,51 @@
+:root {
+  --ground: #f3f5fe;
+  --panel: #fafbff;
+  --panel-2: #e4e7f5;
+  --ink: #292b31;
+  --ink-2: #3f424d;
+  --muted: #595d6c;
+  --line: rgba(41, 43, 49, 0.13);
+  --line-strong: rgba(41, 43, 49, 0.24);
+  --accent: #5d5294;
+  --accent-tint: #e7e5fe;
+  --accent-ink: #423a6a;
+  --success: oklch(0.47 0.09 150);
+  --warning: oklch(0.47 0.09 75);
+  --danger: oklch(0.47 0.09 25);
+  --info: oklch(0.47 0.09 250);
+  --stripe: rgba(41, 43, 49, 0.07);
+  --shadow-sm: 0 0 0 1px rgba(41, 43, 49, 0.1);
+  --shadow-md: 0 0 0 1px rgba(41, 43, 49, 0.1), 0 4px 14px rgba(41, 43, 49, 0.08);
+  --shadow-lg: 0 0 0 1px rgba(41, 43, 49, 0.12), 0 14px 36px rgba(41, 43, 49, 0.14);
+}
+
+/*
+ * No dark palette exists in the canonical Design System (HD-001 froze light-mode-only).
+ * These values are derived, not sourced: same OKLCH hue/chroma per token, lightness
+ * inverted for the neutral ramp, since the light theme is itself an inversion of a
+ * dark-native base system. See TASK-007 handoff for the explicit authorization/rationale.
+ */
+:root[data-theme='dark'] {
+  --ground: #17161d;
+  --panel: #201f29;
+  --panel-2: #2b2a37;
+  --ink: #f0eff5;
+  --ink-2: #d8d6e3;
+  --muted: #a8a6ba;
+  --line: rgba(240, 239, 245, 0.12);
+  --line-strong: rgba(240, 239, 245, 0.22);
+  --accent: #8f7fd6;
+  --accent-tint: #332c55;
+  --accent-ink: #d9d2f5;
+  --success: oklch(0.62 0.11 150);
+  --warning: oklch(0.62 0.11 75);
+  --danger: oklch(0.62 0.11 25);
+  --info: oklch(0.62 0.11 250);
+  --stripe: rgba(240, 239, 245, 0.08);
+}
+
+body {
+  background-color: var(--ground);
+  color: var(--ink);
+}
