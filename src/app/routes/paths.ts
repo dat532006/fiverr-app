@@ -1,4 +1,5 @@
 import type { DetailCategoryId, GroupId, TopCategoryId } from '../../features/taxonomy/public';
+import type { JobId } from '../../features/jobs/public';
 
 export function categoryPath(topCategoryId: TopCategoryId): string {
   return `/category/${topCategoryId}`;
@@ -14,4 +15,8 @@ export function categoryGroupDetailPath(
   detailCategoryId: DetailCategoryId,
 ): string {
   return `/category/${topCategoryId}/group/${groupId}/detail/${detailCategoryId}`;
+}
+
+export function jobPath(jobId: JobId): string {
+  return `/job/${jobId}`;
 }
