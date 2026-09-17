@@ -24,6 +24,12 @@ describe('mapTransportError', () => {
     expect(mapTransportError(error).kind).toBe('server');
   });
 
+  it('classifies a 403 response as forbidden, not unknown', () => {
+    const response = { status: 403 } as unknown as AxiosResponse;
+    const error = new AxiosError('Forbidden', undefined, undefined, undefined, response);
+    expect(mapTransportError(error).kind).toBe('forbidden');
+  });
+
   it('classifies anything else as unknown, without leaking the original value', () => {
     const mapped = mapTransportError('some raw sensitive string');
     expect(mapped.kind).toBe('unknown');

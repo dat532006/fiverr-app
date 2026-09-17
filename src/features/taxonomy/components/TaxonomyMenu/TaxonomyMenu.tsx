@@ -5,6 +5,7 @@ import { TaxonomyMenuDesktopPanel } from './TaxonomyMenuDesktopPanel';
 import { TaxonomyMenuMobileAccordion } from './TaxonomyMenuMobileAccordion';
 import { InlineErrorState } from '../../../../shared/ui/InlineErrorState';
 import { Skeleton } from '../../../../shared/ui/Skeleton';
+import { isForbiddenAppError } from '../../queries/taxonomy-menu.query-options';
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), summary';
 
@@ -69,7 +70,11 @@ export function TaxonomyMenu() {
           ) : query.status === 'error' ? (
             <div className="bg-[color:var(--panel)] p-6 shadow-[var(--shadow-lg)]">
               <InlineErrorState
-                message="Không tải được danh mục."
+                message={
+                  isForbiddenAppError(query.error)
+                    ? 'Danh mục hiện không truy cập được.'
+                    : 'Không tải được danh mục.'
+                }
                 onRetry={() => void query.refetch()}
               />
             </div>

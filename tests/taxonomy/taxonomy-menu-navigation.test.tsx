@@ -73,6 +73,18 @@ describe('TaxonomyMenu interaction', () => {
     );
   });
 
+  it('shows an unavailable-data state for a public 403 without navigating away (no login redirect)', async () => {
+    mockServer.use(
+      http.get(`${origin}${PATH}`, () => HttpResponse.json({ statusCode: 403 }, { status: 403 })),
+    );
+    renderBootstrap(<Harness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Danh mục/ }));
+    await waitFor(() => screen.getByRole('alert'));
+    expect(screen.getByText('Danh mục hiện không truy cập được.')).toBeTruthy();
+    expect(screen.getByTestId('location').textContent).toBe('/');
+  });
+
   it('opens via keyboard (Tab + Enter) and closes on Escape, returning focus to the trigger', async () => {
     seedMenu();
     renderBootstrap(<Harness />);

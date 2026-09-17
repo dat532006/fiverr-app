@@ -1,5 +1,5 @@
 export type AppErrorKind =
-  'network' | 'timeout' | 'server' | 'decode' | 'configuration' | 'unknown';
+  'network' | 'timeout' | 'server' | 'decode' | 'configuration' | 'forbidden' | 'unknown';
 
 const MESSAGES: Readonly<Record<AppErrorKind, string>> = {
   network: 'Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.',
@@ -7,6 +7,7 @@ const MESSAGES: Readonly<Record<AppErrorKind, string>> = {
   server: 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.',
   decode: 'Không đọc được dữ liệu trả về.',
   configuration: 'Cấu hình kết nối chưa hợp lệ.',
+  forbidden: 'Dữ liệu hiện không truy cập được.',
   unknown: 'Đã xảy ra lỗi không xác định.',
 };
 

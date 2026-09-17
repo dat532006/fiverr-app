@@ -1,4 +1,4 @@
-import { GroupCard, useTaxonomyMenu } from '../../taxonomy/public';
+import { GroupCard, isForbiddenAppError, useTaxonomyMenu } from '../../taxonomy/public';
 import { Skeleton } from '../../../shared/ui/Skeleton';
 import { InlineErrorState } from '../../../shared/ui/InlineErrorState';
 import { flattenGroups } from './flatten-groups';
@@ -36,7 +36,11 @@ export function GroupStrip() {
           Nhóm dịch vụ phổ biến
         </h2>
         <InlineErrorState
-          message="Không tải được nhóm dịch vụ."
+          message={
+            isForbiddenAppError(query.error)
+              ? 'Nhóm dịch vụ hiện không truy cập được.'
+              : 'Không tải được nhóm dịch vụ.'
+          }
           onRetry={() => void query.refetch()}
         />
       </section>

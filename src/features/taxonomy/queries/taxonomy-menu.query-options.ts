@@ -26,6 +26,10 @@ export function isTransientAppError(error: unknown): boolean {
   return error instanceof AppError && (error.kind === 'network' || error.kind === 'timeout');
 }
 
+export function isForbiddenAppError(error: unknown): boolean {
+  return error instanceof AppError && error.kind === 'forbidden';
+}
+
 export function taxonomyMenuQueryOptions() {
   return queryOptions({
     queryKey: TAXONOMY_MENU_QUERY_KEY,
