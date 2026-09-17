@@ -20,7 +20,7 @@ export function SearchForm({ defaultValue, onSubmit }: SearchFormProps) {
     <form
       role="search"
       onSubmit={handleSubmit}
-      className="flex items-center gap-2 rounded-lg border border-[color:var(--line-strong)] bg-[color:var(--panel)] px-4 py-3"
+      className="flex items-center gap-2 rounded-lg border border-[color:var(--line-strong)] bg-[color:var(--panel)] px-4 py-3 focus-within:border-[color:var(--accent)] focus-within:ring-2 focus-within:ring-[color:var(--accent)]"
     >
       <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-[color:var(--muted)]" />
       <label htmlFor={inputId} className="sr-only">
