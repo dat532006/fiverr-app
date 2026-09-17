@@ -31,14 +31,14 @@ const sampleJob = {
 };
 
 describe('fetchSearchJobs', () => {
-  it('resolves the decoded DTO list on success', async () => {
+  it('resolves the decoded wrapper list, extracting congViec, on success', async () => {
     mockServer.use(
       http.get(`${origin}${PATH_PREFIX}logo`, () =>
-        HttpResponse.json({ statusCode: 200, content: [sampleJob] }),
+        HttpResponse.json({ statusCode: 200, content: [{ congViec: sampleJob }] }),
       ),
     );
     const result = await fetchSearchJobs('logo', { client: client() });
-    expect(result).toEqual([sampleJob]);
+    expect(result).toEqual([{ congViec: sampleJob }]);
   });
 
   it('throws a decode error on a malformed payload', async () => {

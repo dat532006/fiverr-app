@@ -5,10 +5,12 @@ export class SearchJobsDecodeError extends Error {
   }
 }
 
-// Mirrors CyberSoft's CongViecViewModel (E28: GET
-// /api/cong-viec/lay-danh-sach-cong-viec-theo-ten/{TenCongViec}). Every field
-// documented on that model is decoded so a malformed/missing field fails
-// decoding rather than becoming a silently incomplete success.
+// Mirrors the `congViec` object nested inside each E28 (GET
+// /api/cong-viec/lay-danh-sach-cong-viec-theo-ten/{TenCongViec}) result item —
+// confirmed by live runtime evidence to be a joined ViewModel wrapper, not a
+// flat CongViec (see SearchJobItemDto below). Every field documented on this
+// model is decoded so a malformed/missing field fails decoding rather than
+// becoming a silently incomplete success.
 export interface CongViecDto {
   readonly id: number;
   readonly tenCongViec: string;
@@ -20,6 +22,15 @@ export interface CongViecDto {
   readonly maChiTietLoaiCongViec: number;
   readonly moTaNgan: string;
   readonly saoCongViec: number;
+}
+
+// Each E28 `content[]` entry is a search-result ViewModel wrapping the job
+// under `congViec`, alongside seller/category display metadata (`avatar`,
+// `tenNguoiTao`, `tenChiTietLoai`, ...) that the current Job model/UI does not
+// use. Only `congViec` — the field this application actually needs — is
+// decoded strictly; the rest is left undecoded rather than made mandatory.
+export interface SearchJobItemDto {
+  readonly congViec: CongViecDto;
 }
 
 function decodeCongViec(input: unknown): CongViecDto {
@@ -86,10 +97,20 @@ function decodeCongViec(input: unknown): CongViecDto {
   };
 }
 
+// The wrapper's nested `congViec` is required for a successful search item —
+// a missing/null/non-object `congViec` is a decode failure, same as any other
+// malformed required field.
+function decodeSearchJobItem(input: unknown): SearchJobItemDto {
+  if (typeof input !== 'object' || input === null || !('congViec' in input)) {
+    throw new SearchJobsDecodeError();
+  }
+  return { congViec: decodeCongViec(input.congViec) };
+}
+
 // A missing/null/non-array `content` is a decode failure. It must never be
 // silently coerced to `[]`, because a genuinely empty result set ([] jobs) is
 // a distinct, legitimate state that downstream UI must not treat as an error.
-export function decodeSearchJobsResponse(input: unknown): readonly CongViecDto[] {
+export function decodeSearchJobsResponse(input: unknown): readonly SearchJobItemDto[] {
   if (typeof input !== 'object' || input === null || !('content' in input)) {
     throw new SearchJobsDecodeError();
   }
@@ -97,5 +118,5 @@ export function decodeSearchJobsResponse(input: unknown): readonly CongViecDto[]
   if (!Array.isArray(content)) {
     throw new SearchJobsDecodeError();
   }
-  return content.map(decodeCongViec);
+  return content.map(decodeSearchJobItem);
 }

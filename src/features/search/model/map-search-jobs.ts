@@ -1,5 +1,5 @@
 import { toJobId, type Job } from '../../jobs/public';
-import type { CongViecDto } from '../api/search-jobs.dto';
+import type { CongViecDto, SearchJobItemDto } from '../api/search-jobs.dto';
 
 function parseImageUrl(hinhAnh: string): string | null {
   if (!hinhAnh) return null;
@@ -25,7 +25,9 @@ function mapJob(dto: CongViecDto): Job {
   };
 }
 
+// Extracts each wrapper's nested `congViec` here in the mapper layer, rather
+// than disguising the E28 wrapper as a flat CongViec at the decoder boundary.
 // Preserves E28's source order — no client-side sort/combine/ranking.
-export function mapSearchJobs(dtos: readonly CongViecDto[]): readonly Job[] {
-  return dtos.map(mapJob);
+export function mapSearchJobs(items: readonly SearchJobItemDto[]): readonly Job[] {
+  return items.map((item) => mapJob(item.congViec));
 }

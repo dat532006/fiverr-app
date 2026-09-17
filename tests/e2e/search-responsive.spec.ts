@@ -37,13 +37,19 @@ function mockJob(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// Confirmed live E28 content[] shape: a ViewModel wrapper around `congViec`,
+// plus seller/category display metadata the application does not use.
+function mockWrapperItem(overrides: Partial<Record<string, unknown>> = {}) {
+  return { congViec: mockJob(overrides) };
+}
+
 // Four distinct jobs so the desktop multi-column assertion below is
 // deterministic and never needs a live-result-count `test.skip`.
 const MOCK_JOBS = [
-  mockJob({ id: 1, tenCongViec: 'Thiết kế logo thương hiệu' }),
-  mockJob({ id: 2, tenCongViec: 'Viết nội dung quảng cáo' }),
-  mockJob({ id: 3, tenCongViec: 'Dựng video giới thiệu' }),
-  mockJob({ id: 4, tenCongViec: 'Thiết kế banner mạng xã hội' }),
+  mockWrapperItem({ id: 1, tenCongViec: 'Thiết kế logo thương hiệu' }),
+  mockWrapperItem({ id: 2, tenCongViec: 'Viết nội dung quảng cáo' }),
+  mockWrapperItem({ id: 3, tenCongViec: 'Dựng video giới thiệu' }),
+  mockWrapperItem({ id: 4, tenCongViec: 'Thiết kế banner mạng xã hội' }),
 ];
 
 // Installs a host-wide interception for the CyberSoft API so this spec makes

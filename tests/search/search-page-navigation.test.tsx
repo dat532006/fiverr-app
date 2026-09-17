@@ -38,6 +38,11 @@ function job(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// Confirmed live E28 content[] shape: a ViewModel wrapper around `congViec`.
+function wrapperItem(overrides: Partial<Record<string, unknown>> = {}) {
+  return { congViec: job(overrides) };
+}
+
 function respondWith(term: string, body: JsonBodyType) {
   mockServer.use(
     http.get(`${origin}${PATH_PREFIX}${encodeURIComponent(term)}`, () => HttpResponse.json(body)),
@@ -75,8 +80,8 @@ function renderAtRoot(initialPath: string) {
 
 describe('SearchPage — browser back/forward (AC02)', () => {
   it('restores the correct submitted query and result state on back navigation', async () => {
-    respondWith('a', { statusCode: 200, content: [job({ id: 1, tenCongViec: 'Job A' })] });
-    respondWith('b', { statusCode: 200, content: [job({ id: 2, tenCongViec: 'Job B' })] });
+    respondWith('a', { statusCode: 200, content: [wrapperItem({ id: 1, tenCongViec: 'Job A' })] });
+    respondWith('b', { statusCode: 200, content: [wrapperItem({ id: 2, tenCongViec: 'Job B' })] });
     const { router } = renderAtRoot('/search');
     const user = userEvent.setup();
 

@@ -37,6 +37,11 @@ function job(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// Confirmed live E28 content[] shape: a ViewModel wrapper around `congViec`.
+function wrapperItem(overrides: Partial<Record<string, unknown>> = {}) {
+  return { congViec: job(overrides) };
+}
+
 function respondWith(term: string, body: JsonBodyType) {
   mockServer.use(
     http.get(`${origin}${PATH_PREFIX}${encodeURIComponent(term)}`, () => HttpResponse.json(body)),
@@ -61,7 +66,7 @@ describe('SearchPage — URL/query ownership (AC01)', () => {
   it('puts the submitted query in the URL and renders results through JobCard', async () => {
     respondWith('logo', {
       statusCode: 200,
-      content: [job({ id: 42, tenCongViec: 'Thiết kế logo' })],
+      content: [wrapperItem({ id: 42, tenCongViec: 'Thiết kế logo' })],
     });
     renderBootstrap(<Harness />, '/search');
     const user = userEvent.setup();
@@ -144,11 +149,11 @@ describe('SearchPage — race safety (AC02 / T18)', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/search?q=b'));
 
     // B (the current query) resolves first.
-    resolveB({ statusCode: 200, content: [job({ id: 2, tenCongViec: 'Job B' })] });
+    resolveB({ statusCode: 200, content: [wrapperItem({ id: 2, tenCongViec: 'Job B' })] });
     await waitFor(() => screen.getByText('Job B'));
 
     // A resolves late, after B is already showing — it must never appear.
-    resolveA({ statusCode: 200, content: [job({ id: 1, tenCongViec: 'Job A' })] });
+    resolveA({ statusCode: 200, content: [wrapperItem({ id: 1, tenCongViec: 'Job A' })] });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.queryByText('Job A')).toBeNull();
     expect(screen.getByText('Job B')).toBeTruthy();
@@ -171,7 +176,10 @@ describe('SearchPage — UI states', () => {
     respondWith('logo', { statusCode: 500 });
     renderBootstrap(<Harness />, '/search?q=logo');
     await waitFor(() => screen.getByRole('alert'));
-    respondWith('logo', { statusCode: 200, content: [job({ id: 5, tenCongViec: 'Recovered' })] });
+    respondWith('logo', {
+      statusCode: 200,
+      content: [wrapperItem({ id: 5, tenCongViec: 'Recovered' })],
+    });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Thử lại' }));
     await waitFor(() => screen.getByText('Recovered'));
@@ -192,7 +200,7 @@ describe('SearchPage — UI states', () => {
 
 describe('SearchPage — keyboard interaction (T23)', () => {
   it('submits via Enter from the search input and keeps focus usable', async () => {
-    respondWith('logo', { statusCode: 200, content: [job({ id: 1, tenCongViec: 'Job' })] });
+    respondWith('logo', { statusCode: 200, content: [wrapperItem({ id: 1, tenCongViec: 'Job' })] });
     renderBootstrap(<Harness />, '/search');
     const user = userEvent.setup();
     await user.tab();

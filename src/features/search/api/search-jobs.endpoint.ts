@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios';
 import { getHttpClient } from '../../../infrastructure/http/client';
-import { decodeSearchJobsResponse, type CongViecDto } from './search-jobs.dto';
+import { decodeSearchJobsResponse, type SearchJobItemDto } from './search-jobs.dto';
 
 const SEARCH_JOBS_PATH_PREFIX = '/api/cong-viec/lay-danh-sach-cong-viec-theo-ten/';
 
@@ -12,7 +12,7 @@ type FetchSearchJobsOptions = Readonly<{
 export async function fetchSearchJobs(
   term: string,
   { client = getHttpClient(), signal }: FetchSearchJobsOptions = {},
-): Promise<readonly CongViecDto[]> {
+): Promise<readonly SearchJobItemDto[]> {
   // `term` is a path segment, not a query parameter — encodeURIComponent runs
   // exactly once here and nowhere else on this value.
   const path = `${SEARCH_JOBS_PATH_PREFIX}${encodeURIComponent(term)}`;
