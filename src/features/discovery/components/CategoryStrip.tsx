@@ -1,4 +1,4 @@
-import { CategoryCard, useTaxonomyMenu } from '../../taxonomy/public';
+import { CategoryCard, isForbiddenAppError, useTaxonomyMenu } from '../../taxonomy/public';
 import { Skeleton } from '../../../shared/ui/Skeleton';
 import { InlineErrorState } from '../../../shared/ui/InlineErrorState';
 
@@ -27,7 +27,11 @@ export function CategoryStrip() {
           Danh mục công việc
         </h2>
         <InlineErrorState
-          message="Không tải được danh mục công việc."
+          message={
+            isForbiddenAppError(query.error)
+              ? 'Danh mục công việc hiện không truy cập được.'
+              : 'Không tải được danh mục công việc.'
+          }
           onRetry={() => void query.refetch()}
         />
       </section>

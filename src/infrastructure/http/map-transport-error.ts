@@ -13,6 +13,9 @@ export function mapTransportError(error: unknown): AppError {
     if (!error.response) {
       return new AppError('network');
     }
+    if (error.response.status === 403) {
+      return new AppError('forbidden');
+    }
     if (error.response.status >= 500) {
       return new AppError('server');
     }

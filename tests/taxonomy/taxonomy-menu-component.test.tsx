@@ -67,4 +67,28 @@ describe('taxonomy-driven Home strips', () => {
     await user.click(screen.getByRole('button', { name: 'Thử lại' }));
     await waitFor(() => screen.getByText('Recovered'));
   });
+
+  it('renders an unavailable-data state for a public 403, not the generic load-failure copy, and issues exactly one request', async () => {
+    let requestCount = 0;
+    mockServer.use(
+      http.get(`${origin}${PATH}`, () => {
+        requestCount += 1;
+        return HttpResponse.json({ statusCode: 403 }, { status: 403 });
+      }),
+    );
+    renderBootstrap(<CategoryStrip />);
+    await waitFor(() => screen.getByRole('alert'));
+    expect(screen.getByText('Danh mục công việc hiện không truy cập được.')).toBeTruthy();
+    expect(screen.queryByText('Không tải được danh mục công việc.')).toBeNull();
+    await waitFor(() => expect(requestCount).toBe(1));
+  });
+
+  it('renders the same unavailable-data semantics for GroupStrip on a public 403', async () => {
+    mockServer.use(
+      http.get(`${origin}${PATH}`, () => HttpResponse.json({ statusCode: 403 }, { status: 403 })),
+    );
+    renderBootstrap(<GroupStrip />);
+    await waitFor(() => screen.getByRole('alert'));
+    expect(screen.getByText('Nhóm dịch vụ hiện không truy cập được.')).toBeTruthy();
+  });
 });
