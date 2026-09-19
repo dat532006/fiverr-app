@@ -20,3 +20,11 @@ export function categoryGroupDetailPath(
 export function jobPath(jobId: JobId): string {
   return `/job/${jobId}`;
 }
+
+export const LOGIN_PATH = '/login';
+
+// `returnTo` is encoded exactly once here. It is sanitised on the receiving side by
+// `sanitizeReturnTo`, never trusted because a link carried it.
+export function loginPath(returnTo?: string): string {
+  return returnTo ? `${LOGIN_PATH}?returnTo=${encodeURIComponent(returnTo)}` : LOGIN_PATH;
+}
