@@ -10,6 +10,9 @@ describe('TASK-013 T11 sanitizeReturnTo', () => {
     ['/job/12', '/job/12'],
     ['/category/1/group/2', '/category/1/group/2'],
     ['/search?q=a%20b#top', '/search?q=a%20b#top'],
+    ['/job/7?q=a%2Fb#part%20one', '/job/7?q=a%2Fb#part%20one'],
+    ['/a/../job/7', '/job/7'],
+    ['/search/c%C3%A0%20ph%C3%AA', '/search/c%C3%A0%20ph%C3%AA'],
   ])('keeps the same-origin path %s', (raw, expected) => {
     expect(sanitizeReturnTo(raw)).toBe(expected);
   });
@@ -36,6 +39,16 @@ describe('TASK-013 T11 sanitizeReturnTo', () => {
     ['/register', 'the register page'],
     ['/register#x', 'the register page with a fragment'],
     ['/a/../login', 'a dot-segment path that resolves to login'],
+    ['/a/..//review-target.invalid', 'normalization to a protocol-relative URL'],
+    ['/%6cogin', 'router-decoded login'],
+    ['/%72egister/', 'router-decoded register'],
+    ['/a/%2e%2e//review-target.invalid', 'encoded dot normalization'],
+    ['/%2fhost.invalid', 'decoded leading slash'],
+    ['/%5chost.invalid', 'decoded backslash'],
+    ['/%09/host.invalid', 'decoded control character'],
+    ['/login%2f', 'router-decoded trailing slash'],
+    ['/%', 'malformed escape'],
+    ['/%E0%A4%A', 'malformed UTF-8'],
     [`/${'a'.repeat(2100)}`, 'an over-long path'],
   ])('falls back to / for %s (%s)', (raw) => {
     expect(sanitizeReturnTo(raw)).toBe('/');

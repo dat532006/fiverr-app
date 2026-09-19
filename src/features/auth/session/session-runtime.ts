@@ -1,14 +1,13 @@
 import type { AppError } from '../../../shared/models/app-error';
-import type { UserId } from '../../../shared/models/user-id';
 import type { SessionSnapshotStore } from '../../../infrastructure/session-storage/session-snapshot-store';
 import { SigninDecodeError } from '../api/signin.dto';
 import { postSignin, type SigninCredentials } from '../api/signin.endpoint';
 import { readTokenHints } from '../api/token-hints';
 import { classifySigninFailure } from '../model/map-signin-failure';
 import { mapSigninIdentity } from '../model/map-signin';
-import type { PersistenceMode, SessionRequestContext, SessionRole } from '../model/session';
+import type { PersistenceMode, SessionRequestContext } from '../model/session';
 import { encodeSnapshot } from '../model/snapshot';
-import { SessionRejectedError } from './errors';
+import type { RestoreSession } from './restore-session';
 import {
   initializeSession,
   reduceSession,
@@ -17,23 +16,12 @@ import {
   type SessionState,
 } from './session-reducer';
 
-// What the app coordinator's E39 read must hand back. Kept structural so `auth` imports no
-// other feature: the concrete type is `profile`'s `SessionProfile`.
-export interface RestoredProfile {
-  readonly userId: UserId;
-  readonly role: SessionRole;
-  readonly displayName: string;
-}
-
 export interface SessionDependencies {
   readonly store: SessionSnapshotStore;
   // Cancels in-flight queries and clears every cached server response. Called at each
   // session boundary (sign-in, sign-out).
   readonly onSessionBoundary: () => void;
-  // E50 admission read. Resolves when the token is admitted; rejects otherwise.
-  readonly readAdmission: (ctx: SessionRequestContext) => Promise<unknown>;
-  // E39 consistency read for the same captured context.
-  readonly readProfile: (userId: UserId, ctx: SessionRequestContext) => Promise<RestoredProfile>;
+  readonly restoreSession: RestoreSession;
   readonly now?: () => number;
   readonly isOnline?: () => boolean;
 }
@@ -58,23 +46,15 @@ export interface SessionRuntime extends SessionCommands {
   getState(): SessionState;
   subscribe(listener: () => void): () => void;
   requestContextFor(state: SessionState): SessionRequestContext | null;
-  startInitialRestore(): void;
+  startInitialRestore(): Promise<void>;
 }
 
 const SIGN_IN_STATUSES = new Set(['anonymous', 'expired', 'restore-unavailable']);
 
-// Only a 401 (or an explicit invalid-session signal) expires the snapshot. Every other
-// failure, including an ambiguous 403 or a network error, keeps it for a retry.
-function isSessionRejection(error: unknown): boolean {
-  return error instanceof SessionRejectedError;
-}
-
-// The session controller: owns the epoch, the single-flight rules and the restore steps.
-// It is plain TypeScript (state in a closure, published through `subscribe`) so it can be
-// tested without React and never depends on render timing. Its dependencies are injected by
-// the `app` coordinator, so `auth` imports no other feature.
+// Auth owns epochs, single-flight lifecycle and guarded publication. App owns restore
+// orchestration through the injected callback; auth imports no other feature.
 export function createSessionRuntime(dependencies: SessionDependencies): SessionRuntime {
-  const { store, onSessionBoundary, readAdmission, readProfile } = dependencies;
+  const { store, onSessionBoundary, restoreSession } = dependencies;
   const now = dependencies.now ?? Date.now;
   const isOnline = dependencies.isOnline ?? (() => navigator.onLine !== false);
 
@@ -98,41 +78,33 @@ export function createSessionRuntime(dependencies: SessionDependencies): Session
     };
   }
 
-  // One admission attempt: E50 admits the token, then E39 confirms the same identity. A
-  // late result is dropped by the epoch, never by unmount, so a StrictMode remount cannot
-  // strand the restore in `restoring`.
+  // Capture one session, delegate coordination, then guard every publication/storage effect.
   async function attemptRestore(): Promise<void> {
     const credentials = state.credentials;
     if (state.status !== 'restoring' || !credentials) return;
     const e0 = state.epoch;
     const ctx = contextFor(credentials, e0);
-
-    let profile: RestoredProfile;
-    try {
-      await readAdmission(ctx);
-      if (state.epoch !== e0) return;
-      profile = await readProfile(credentials.userId, ctx);
-    } catch (error) {
-      // A late failure from an obsolete session is dropped, whatever it was.
-      if (state.epoch !== e0) return;
-      if (isSessionRejection(error)) {
-        store.remove();
-        dispatch({ type: 'restore-expired', epoch: e0 });
-      } else {
-        dispatch({ type: 'restore-unavailable', epoch: e0 });
-      }
-      return;
-    }
+    const outcome = await restoreSession(ctx, credentials.role);
     if (state.epoch !== e0) return;
 
-    // An E39 success alone never authenticates: the identity and role must match the
-    // snapshot exactly. A mismatch deletes the snapshot; the role is never raised here.
-    if (profile.userId !== credentials.userId || profile.role !== credentials.role) {
-      store.remove();
-      dispatch({ type: 'restore-rejected', epoch: e0 });
-      return;
+    switch (outcome.kind) {
+      case 'completed':
+        dispatch({ type: 'restore-completed', epoch: e0, displayName: outcome.displayName });
+        break;
+      case 'expired':
+      case 'rejected':
+        store.remove();
+        dispatch({
+          type: outcome.kind === 'expired' ? 'restore-expired' : 'restore-rejected',
+          epoch: e0,
+        });
+        break;
+      case 'unavailable':
+        dispatch({ type: 'restore-unavailable', epoch: e0 });
+        break;
+      case 'stale':
+        break;
     }
-    dispatch({ type: 'restore-completed', epoch: e0, displayName: profile.displayName });
   }
 
   async function signIn(credentials: SigninCredentials): Promise<SignInOutcome> {
@@ -222,10 +194,10 @@ export function createSessionRuntime(dependencies: SessionDependencies): Session
         : null;
     },
     // Idempotent: a StrictMode effect that runs twice still starts exactly one restore.
-    startInitialRestore() {
+    async startInitialRestore() {
       if (initialRestoreStarted) return;
       initialRestoreStarted = true;
-      void attemptRestore();
+      await attemptRestore();
     },
   };
 }

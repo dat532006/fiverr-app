@@ -57,6 +57,15 @@ async function installHermeticCyberSoftMock(page: Page, options: MockOptions = {
   const { signin = 'ok', restore = 'ok', name = DISPLAY_NAME, signinDelayMs = 0 } = options;
   const unexpectedRequests: string[] = [];
   const seen: string[] = [];
+  // A final network boundary also blocks unexpected external navigation (F01), fonts,
+  // and any host outside the mocked API. Only the local preview may reach the network.
+  await page.route('**/*', async (route) => {
+    if (new URL(route.request().url()).origin === 'http://127.0.0.1:4173') {
+      await route.continue();
+    } else {
+      await route.abort();
+    }
+  });
   await page.route('**cybersoft.edu.vn/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -128,6 +137,94 @@ async function fillAndSubmit(page: Page) {
 
 const boxShadow = (locator: Locator) =>
   locator.evaluate((element) => getComputedStyle(element).boxShadow);
+
+test.describe('review regressions', () => {
+  for (const memoryOnly of [false, true]) {
+    for (const target of [
+      '/a/..//review-target.invalid',
+      '/%6cogin',
+      '/job/7?q=a%2Fb#part%20one',
+    ]) {
+      test(`safe navigation, memory-only=${memoryOnly}, target=${target}`, async ({ page }) => {
+        const { unexpectedRequests } = await installHermeticCyberSoftMock(page);
+        const escaped: string[] = [];
+        page.on('request', (request) => {
+          if (
+            request.isNavigationRequest() &&
+            new URL(request.url()).origin !== 'http://127.0.0.1:4173'
+          )
+            escaped.push(request.url());
+        });
+        if (memoryOnly)
+          await page.addInitScript(() => {
+            const original = Storage.prototype.setItem;
+            Storage.prototype.setItem = function (key, value) {
+              if (key === 'servio-session')
+                throw new DOMException('synthetic quota', 'QuotaExceededError');
+              original.call(this, key, value);
+            };
+          });
+        const arrival = `/login?returnTo=${encodeURIComponent(target)}`;
+        const destination = target.startsWith('/job/') ? target : '/';
+        await page.goto(arrival);
+        await fillAndSubmit(page);
+        if (memoryOnly) {
+          await expect(page.getByText('Đã đăng nhập.')).toBeVisible();
+          await expect(page).toHaveURL(`http://127.0.0.1:4173${arrival}`);
+          const continuation = page.getByRole('link', { name: 'Tiếp tục' });
+          await expect(continuation).toHaveAttribute('href', destination);
+          await continuation.click();
+        }
+        await expect(page).toHaveURL(`http://127.0.0.1:4173${destination}`);
+        await expect(
+          page.getByRole('banner').getByRole('button', { name: DISPLAY_NAME }),
+        ).toBeVisible();
+        expect(escaped).toEqual([]);
+        expect(unexpectedRequests).toEqual([]);
+      });
+    }
+  }
+
+  test('failed restore then memory-only sign-in waits for explicit continuation', async ({
+    page,
+  }) => {
+    const { unexpectedRequests, seen } = await installHermeticCyberSoftMock(page, {
+      restore: 'forbidden',
+    });
+    await page.addInitScript(
+      ({ token, userId }) => {
+        sessionStorage.setItem(
+          'servio-session',
+          JSON.stringify({ v: 1, token, userId, role: 'USER' }),
+        );
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === 'servio-session')
+            throw new DOMException('synthetic quota', 'QuotaExceededError');
+          original.call(this, key, value);
+        };
+      },
+      { token: USER_TOKEN, userId: USER_ID },
+    );
+    await page.goto('/login?returnTo=%2Fjob%2F7');
+    await expect(page.getByRole('button', { name: 'Thử lại' })).toBeVisible();
+    await fillAndSubmit(page);
+    await expect(page.getByText('Đã đăng nhập.')).toBeVisible();
+    await expect(
+      page.getByText(
+        'Trình duyệt không cho lưu phiên đăng nhập. Phiên chỉ giữ đến khi bạn tải lại hoặc đóng trang.',
+      ),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?returnTo=%2Fjob%2F7$/);
+    await page.getByRole('link', { name: 'Tiếp tục' }).click();
+    await expect(page).toHaveURL(/\/job\/7$/);
+    expect(seen).toEqual([
+      'GET /api/thue-cong-viec/lay-danh-sach-da-thue',
+      'POST /api/auth/signin',
+    ]);
+    expect(unexpectedRequests).toEqual([]);
+  });
+});
 
 for (const width of WIDTHS) {
   test.describe(`at ${width}px`, () => {

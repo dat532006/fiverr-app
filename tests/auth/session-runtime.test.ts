@@ -7,6 +7,8 @@ import {
   type SessionDependencies,
 } from '../../src/features/auth/session/session-runtime';
 import { toUserId } from '../../src/shared/models/user-id';
+import { createRestoreSession } from '../../src/app/providers/restore-session';
+import type { RestoreSession } from '../../src/features/auth/public';
 import { mockServer } from '../support/server';
 import {
   PATHS,
@@ -48,13 +50,21 @@ function memoryStore(order: string[] = [], writable = true) {
   return { store, current: () => value };
 }
 
-function build(overrides: Partial<SessionDependencies> = {}, order: string[] = []) {
+function build(
+  overrides: Partial<SessionDependencies> & {
+    readAdmission?: Parameters<typeof createRestoreSession>[0];
+    readProfile?: Parameters<typeof createRestoreSession>[1];
+  } = {},
+  order: string[] = [],
+) {
   const memory = memoryStore(order);
   const deps: SessionDependencies = {
     store: memory.store,
     onSessionBoundary: () => void order.push('boundary'),
-    readAdmission: vi.fn(() => Promise.resolve({ admitted: true })),
-    readProfile: vi.fn(() => Promise.resolve(PROFILE)),
+    restoreSession: createRestoreSession(
+      overrides.readAdmission ?? vi.fn(async () => ({ admitted: true as const, itemCount: 0 })),
+      overrides.readProfile ?? vi.fn(async () => PROFILE),
+    ),
     ...overrides,
   };
   return { runtime: createSessionRuntime(deps), deps, memory, order };
@@ -149,14 +159,14 @@ describe('TASK-013 T09/T22 sign-in controller', () => {
   it('refuses to sign in while restoring or already authenticated: nothing sent', async () => {
     seedSnapshot();
     const requests = recordRequests();
-    const gate = deferred<unknown>();
+    const gate = deferred<{ admitted: true; itemCount: number }>();
     const { runtime } = build({ readAdmission: () => gate.promise });
     runtime.startInitialRestore();
     expect(runtime.getState().status).toBe('restoring');
     expect(await runtime.signIn(credentials)).toEqual({ kind: 'busy' });
     expect(requests).toHaveLength(0);
 
-    gate.resolve({ admitted: true });
+    gate.resolve({ admitted: true, itemCount: 0 });
     await vi.waitFor(() => expect(runtime.getState().status).toBe('authenticated'));
     expect(await runtime.signIn(credentials)).toEqual({ kind: 'busy' });
     expect(requests).toHaveLength(0);
@@ -232,6 +242,28 @@ describe('TASK-013 T09/T22 sign-in controller', () => {
 });
 
 describe('TASK-013 T09 sign-out and late restore results', () => {
+  it.each(['completed', 'expired', 'rejected', 'unavailable'] as const)(
+    'guards a late app coordinator outcome (%s) before any publication or storage effect',
+    async (kind) => {
+      seedSnapshot();
+      const result = deferred<Awaited<ReturnType<RestoreSession>>>();
+      const order: string[] = [];
+      const { runtime, memory } = build({ restoreSession: () => result.promise }, order);
+      const finished = runtime.startInitialRestore();
+      runtime.signOut();
+      serveSignin();
+      await runtime.signIn(credentials);
+      const state = runtime.getState();
+      const snapshot = memory.current();
+      order.length = 0;
+      result.resolve(kind === 'completed' ? { kind, displayName: 'Obsolete' } : { kind });
+      await finished;
+      expect(runtime.getState()).toBe(state);
+      expect(memory.current()).toBe(snapshot);
+      expect(order).toEqual([]);
+    },
+  );
+
   it('sign-out sends no request of any kind and clears the snapshot and the caches', async () => {
     const requests = recordRequests();
     const order: string[] = [];
@@ -260,7 +292,7 @@ describe('TASK-013 T09 sign-out and late restore results', () => {
 
   it('sign-out then sign-in DURING a restore: the old restore’s late results never reach the new session', async () => {
     seedSnapshot();
-    const admission = deferred<unknown>();
+    const admission = deferred<{ admitted: true; itemCount: number }>();
     const readProfile = vi.fn(() => Promise.resolve(PROFILE));
     const contexts: Array<{ isCurrent(): boolean }> = [];
     const { runtime } = build({
@@ -270,7 +302,7 @@ describe('TASK-013 T09 sign-out and late restore results', () => {
       },
       readProfile,
     });
-    runtime.startInitialRestore();
+    const restoreFinished = runtime.startInitialRestore();
     expect(runtime.getState().status).toBe('restoring');
 
     runtime.signOut();
@@ -283,8 +315,8 @@ describe('TASK-013 T09 sign-out and late restore results', () => {
     expect(before).toMatchObject({ status: 'authenticated', epoch: 2 });
 
     // Session A's E50 finally answers.
-    admission.resolve({ admitted: true });
-    await new Promise((done) => setTimeout(done, 20));
+    admission.resolve({ admitted: true, itemCount: 0 });
+    await restoreFinished;
     expect(readProfile).not.toHaveBeenCalled();
     expect(contexts[0]?.isCurrent()).toBe(false);
     expect(runtime.getState()).toBe(before);
@@ -297,20 +329,25 @@ describe('TASK-013 T09 sign-out and late restore results', () => {
   it('a late E39 result from an obsolete epoch is dropped', async () => {
     seedSnapshot();
     const profile = deferred<typeof PROFILE>();
-    const { runtime } = build({ readProfile: () => profile.promise });
-    runtime.startInitialRestore();
-    await vi.waitFor(() => expect(runtime.getState().status).toBe('restoring'));
-    await new Promise((done) => setTimeout(done, 10));
+    const profileStarted = deferred();
+    const { runtime } = build({
+      readProfile: () => {
+        profileStarted.resolve();
+        return profile.promise;
+      },
+    });
+    const restoreFinished = runtime.startInitialRestore();
+    await profileStarted.promise;
 
     runtime.signOut();
     profile.resolve(PROFILE);
-    await new Promise((done) => setTimeout(done, 20));
+    await restoreFinished;
     expect(runtime.getState()).toMatchObject({ status: 'anonymous', credentials: null });
   });
 
   it('startInitialRestore is idempotent: a second call issues no second admission', async () => {
     seedSnapshot();
-    const readAdmission = vi.fn(() => Promise.resolve({ admitted: true }));
+    const readAdmission = vi.fn(() => Promise.resolve({ admitted: true as const, itemCount: 0 }));
     const { runtime } = build({ readAdmission });
     runtime.startInitialRestore();
     runtime.startInitialRestore();
@@ -319,7 +356,7 @@ describe('TASK-013 T09 sign-out and late restore results', () => {
   });
 
   it('retryRestore does nothing unless the session is restore-unavailable', async () => {
-    const readAdmission = vi.fn(() => Promise.resolve({ admitted: true }));
+    const readAdmission = vi.fn(() => Promise.resolve({ admitted: true as const, itemCount: 0 }));
     const { runtime } = build({ readAdmission });
     await runtime.retryRestore();
     expect(readAdmission).not.toHaveBeenCalled();

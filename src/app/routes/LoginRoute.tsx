@@ -11,13 +11,17 @@ export function LoginRoute() {
   const [searchParams] = useSearchParams();
   const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
   const view = useSessionView();
-  // Captured at arrival: was a sign-in form on screen, or was the visitor already signed in?
-  const [arrivedAsGuest] = useState(() => GUEST_STATUSES.includes(view.status));
+  // Remember whether this mounted route presented sign-in, including after failed restore.
+  // A successful restore or an already-authenticated arrival never presents the form.
+  const [presentedSignIn, setPresentedSignIn] = useState(false);
+  if (!presentedSignIn && GUEST_STATUSES.includes(view.status)) {
+    setPresentedSignIn(true);
+  }
 
   if (view.status === 'authenticated') {
     // A session that could not be saved first tells the visitor (the page's "Tiếp tục"
     // interstitial). Anyone who arrived signed in is redirected at once, replacing the entry.
-    if (arrivedAsGuest && view.persistence === 'memory-only') {
+    if (presentedSignIn && view.persistence === 'memory-only') {
       return <LoginPage returnTo={returnTo} />;
     }
     return <Navigate to={returnTo} replace />;

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { useLocation, useNavigationType } from 'react-router';
+import { Link, useLocation, useNavigationType } from 'react-router';
 import { BootstrapApp } from '../../src/app/bootstrap/BootstrapApp';
 import { mockServer } from '../support/server';
 import { renderBootstrap } from '../support/render';
@@ -39,7 +39,7 @@ function LocationProbe() {
   const type = useNavigationType();
   return (
     <output data-testid="location" data-type={type}>
-      {`${location.pathname}${location.search}`}
+      {`${location.pathname}${location.search}${location.hash}`}
     </output>
   );
 }
@@ -119,6 +119,40 @@ describe('TASK-013 /login — S-06 inside PublicLayout', () => {
 });
 
 describe('TASK-013 T11 sign-in navigation', () => {
+  it('preserves valid query and fragment on a persisted sign-in redirect', async () => {
+    serveSignin();
+    const user = userEvent.setup();
+    const target = '/job/7?q=a%2Fb#part%20one';
+    mount(`/login?returnTo=${encodeURIComponent(target)}`);
+    await signIn(user);
+    await waitFor(() => expect(location().textContent).toBe(target));
+    expect(location().getAttribute('data-type')).toBe('REPLACE');
+    expect(screen.queryByRole('link', { name: 'Tiếp tục' })).toBeNull();
+  });
+
+  it('an already-authenticated memory-only visitor redirects without another notice', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    });
+    serveSignin();
+    const user = userEvent.setup();
+    renderBootstrap(
+      <>
+        <BootstrapApp />
+        <LocationProbe />
+        <Link to="/login?returnTo=%2Fjob%2F9">Revisit login</Link>
+      </>,
+      '/login?returnTo=%2Fjob%2F7',
+    );
+    await signIn(user);
+    await user.click(await screen.findByRole('link', { name: 'Tiếp tục' }));
+    await waitFor(() => expect(location().textContent).toBe('/job/7'));
+    await user.click(screen.getByRole('link', { name: 'Revisit login' }));
+    await waitFor(() => expect(location().textContent).toBe('/job/9'));
+    expect(screen.queryByText('Đã đăng nhập.')).toBeNull();
+    expect(location().getAttribute('data-type')).toBe('REPLACE');
+  });
+
   it('returns (replace) to the sanitised returnTo and sends no request other than E02', async () => {
     serveSignin();
     const requests = recordRequests();
@@ -141,6 +175,8 @@ describe('TASK-013 T11 sign-in navigation', () => {
     'javascript:alert(1)',
     '/login',
     '/register',
+    '/a/..//review-target.invalid',
+    '/%6cogin',
     '',
   ])('a forged returnTo (%s) falls back to /', async (forged) => {
     serveSignin();
@@ -215,4 +251,66 @@ describe('TASK-013 T11 sign-in navigation', () => {
     expect(stored.userId).toBe(USER_ID);
     expect(readSnapshotRaw()).not.toContain(PASSWORD);
   });
+
+  it.each([
+    ['/a/..//review-target.invalid', '/'],
+    ['/%6cogin', '/'],
+    ['/job/7?q=a%2Fb#part%20one', '/job/7?q=a%2Fb#part%20one'],
+  ])('memory-only continuation applies the same boundary to %s', async (target, expected) => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    });
+    serveSignin();
+    serveEmptyTaxonomy();
+    const user = userEvent.setup();
+    const arrival = `/login?returnTo=${encodeURIComponent(target)}`;
+    mount(arrival);
+    await signIn(user);
+    const continuation = await screen.findByRole('link', { name: 'Tiếp tục' });
+    expect(location().textContent).toBe(arrival);
+    expect(continuation.getAttribute('href')).toBe(expected);
+    await user.click(continuation);
+    await waitFor(() => expect(location().textContent).toBe(expected));
+  });
+
+  it.each([false, true])(
+    'failed restore then sign-in respects persistence (writable=%s)',
+    async (writable) => {
+      seedSnapshot();
+      const admission = deferred();
+      mockServer.use(
+        http.get(PATHS.myHires, async () => {
+          await admission.promise;
+          return new HttpResponse(null, { status: 403 });
+        }),
+      );
+      serveSignin();
+      const requests = recordRequests();
+      const user = userEvent.setup();
+      mount('/login?returnTo=%2Fjob%2F7');
+      expect(await screen.findByText('Đang khôi phục phiên đăng nhập…')).toBeTruthy();
+      admission.resolve();
+      await screen.findByRole('button', { name: 'Thử lại' });
+      if (!writable)
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+          throw new DOMException('quota', 'QuotaExceededError');
+        });
+      await signIn(user);
+      if (!writable) {
+        expect(await screen.findByText('Đã đăng nhập.')).toBeTruthy();
+        expect(
+          screen.getByText(
+            'Trình duyệt không cho lưu phiên đăng nhập. Phiên chỉ giữ đến khi bạn tải lại hoặc đóng trang.',
+          ),
+        ).toBeTruthy();
+        expect(location().textContent).toBe('/login?returnTo=%2Fjob%2F7');
+        const continuation = screen.getByRole('link', { name: 'Tiếp tục' });
+        expect(continuation.getAttribute('href')).toBe('/job/7');
+        await user.click(continuation);
+      }
+      await waitFor(() => expect(location().textContent).toBe('/job/7'));
+      expect(screen.queryByText('Đã đăng nhập.')).toBeNull();
+      expect(requests.map((request) => request.url)).toEqual([PATHS.myHires, PATHS.signin]);
+    },
+  );
 });

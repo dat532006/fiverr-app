@@ -20,7 +20,7 @@ export function SessionProvider({ dependencies, children }: SessionProviderProps
 
   // Once per provider: `startInitialRestore` is idempotent across a StrictMode remount.
   useEffect(() => {
-    runtime.startInitialRestore();
+    void runtime.startInitialRestore();
   }, [runtime]);
 
   const commands = useMemo(
